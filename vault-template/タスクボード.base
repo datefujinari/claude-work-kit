@@ -1,0 +1,113 @@
+filters:
+  and:
+    - type == "task"
+    - '!file.inFolder("99_System")'
+properties:
+  file.name:
+    displayName: タスク
+  note.status:
+    displayName: 状態
+  note.today:
+    displayName: 今日
+  note.priority:
+    displayName: 優先度
+  note.due:
+    displayName: 期限
+  note.project:
+    displayName: プロジェクト
+  note.tags:
+    displayName: タグ
+  note.updated:
+    displayName: 更新日
+views:
+  - type: table
+    name: 今日やる
+    filters:
+      and:
+        - today == true
+        - status != "done"
+    order:
+      - file.name
+      - status
+      - priority
+      - due
+      - project
+    sort:
+      - property: priority
+        direction: ASC
+  - type: table
+    name: 進行中・未着手
+    filters:
+      or:
+        - status == "doing"
+        - status == "todo"
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - file.name
+      - today
+      - priority
+      - due
+      - project
+      - updated
+    sort:
+      - property: due
+        direction: ASC
+  - type: table
+    name: 待ち
+    filters:
+      and:
+        - status == "waiting"
+    order:
+      - file.name
+      - due
+      - project
+      - updated
+  - type: table
+    name: いつか
+    filters:
+      and:
+        - status == "someday"
+    order:
+      - file.name
+      - tags
+      - created
+  - type: cards
+    name: ボード
+    filters:
+      and:
+        - status != "done"
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - file.name
+      - priority
+      - due
+  - type: table
+    name: 完了
+    filters:
+      and:
+        - status == "done"
+    order:
+      - file.name
+      - project
+      - updated
+    sort:
+      - property: updated
+        direction: DESC
+  - type: table
+    name: すべて
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - file.name
+      - status
+      - today
+      - priority
+      - due
+      - project
+      - tags
+      - updated

@@ -1,0 +1,9 @@
+{
+  "newFileLocation": "folder",
+  "newFileFolderPath": "00_Inbox",
+  "attachmentFolderPath": "99_System/Attachments",
+  "useMarkdownLinks": false,
+  "newLinkFormat": "shortest",
+  "alwaysUpdateLinks": true,
+  "showUnsupportedFiles": false
+}
