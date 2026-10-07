@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>冷凍試験 解析ツール</title>
+<!-- グラフ部品は同じフォルダの vendor/ から読む（オフラインでも動く）。無ければ CDN から -->
+<script src="vendor/plotly-basic.min.js"></script>
+<script>window.Plotly || document.write('<script src="https://cdn.jsdelivr.net/npm/plotly.js-basic-dist-min@2.35.2/plotly-basic.min.js"><\/script>');</script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f3ef;
+    --surface-1: #fcfcfb;
+    --surface-2: #f0efec;
+    --border: #e1dfd8;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7974;
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --grid: #e7e5df;
+    --band: rgba(42, 120, 214, 0.10);
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+    --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
+    --good: #0ca30c; --good-ink: #006300; --good-bg: #e3f4e3;
+    --critical: #d03b3b; --critical-ink: #a32727; --critical-bg: #fbe5e5;
+    --warning: #fab219; --warning-ink: #7a5300; --warning-bg: #fdf1d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111110; --surface-1: #1a1a19; --surface-2: #242422; --border: #33332f;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+      --accent: #3987e5; --grid: #2c2c29; --band: rgba(57, 135, 229, 0.16);
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+      --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+      --good-ink: #5fd35f; --good-bg: #1c2e1c; --critical-ink: #f08a8a; --critical-bg: #3a1f1f;
+      --warning-ink: #fab219; --warning-bg: #36301c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111110; --surface-1: #1a1a19; --surface-2: #242422; --border: #33332f;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --accent: #3987e5; --grid: #2c2c29; --band: rgba(57, 135, 229, 0.16);
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+    --good-ink: #5fd35f; --good-bg: #1c2e1c; --critical-ink: #f08a8a; --critical-bg: #3a1f1f;
+    --warning-ink: #fab219; --warning-bg: #36301c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text-primary);
+    font: 14px/1.6 "Yu Gothic UI", "Hiragino Sans", "Meiryo", system-ui, sans-serif;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 4px; }
+  .sub { color: var(--text-secondary); margin: 0; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .hint { color: var(--text-muted); font-size: 12px; margin: 0; }
+  button, select, input {
+    font: inherit; color: var(--text-primary); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: var(--surface-2); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.primary:hover { filter: brightness(1.08); }
+  input[type="number"] { width: 76px; }
+  .drop {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center;
+    color: var(--text-secondary); cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .drop.over, .drop:hover { border-color: var(--accent); background: var(--surface-2); }
+  .drop strong { color: var(--text-primary); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .toolbar { margin-top: 12px; justify-content: space-between; }
+  .settings { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .settings label { display: flex; flex-direction: column; font-size: 12px; color: var(--text-secondary); gap: 2px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 12px; }
+  .chip .sw { width: 10px; height: 10px; border-radius: 50%; }
+  .chip button { border: 0; background: transparent; padding: 0 4px; color: var(--text-muted); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+  .kpi .label { color: var(--text-secondary); font-size: 12px; }
+  .kpi .value { font-size: 26px; font-weight: 600; line-height: 1.3; }
+  .kpi .note { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .grid2 { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+  .grid2 > .card { margin-bottom: 0; min-width: 0; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  .chart { width: 100%; height: 420px; }
+  .chart.short { height: 420px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  th { color: var(--text-secondary); font-weight: 600; background: var(--surface-2); position: sticky; top: 0; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--surface-2); }
+  tbody tr.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .name { display: inline-flex; align-items: center; gap: 8px; }
+  .name .sw { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.good { color: var(--good-ink); background: var(--good-bg); }
+  .badge.bad { color: var(--critical-ink); background: var(--critical-bg); }
+  .badge.warn { color: var(--warning-ink); background: var(--warning-bg); }
+  .muted { color: var(--text-muted); }
+  .detail-meta { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+  .empty { text-align: center; padding: 48px 16px; color: var(--text-secondary); }
+  .empty p { margin: 4px 0; }
+  .empty button { margin-top: 14px; }
+  .error { color: var(--critical-ink); font-size: 13px; margin-top: 8px; }
+  .hidden { display: none !important; }
+  .theme-toggle { margin-left: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>冷凍試験 解析ツール</h1>
+    <p class="sub">温度ロガーのCSVをまとめて読み込み、冷却曲線と指標を比較します（デモ版）</p>
+    <button id="themeBtn" class="theme-toggle" title="表示の明暗を切り替え">表示: 自動</button>
+  </header>
+
+  <section class="card">
+    <div id="drop" class="drop" tabindex="0">
+      <strong>CSVファイルをここにドラッグ&amp;ドロップ</strong>（複数可）<br>
+      <span class="hint">またはクリックして選択 ・ Shift-JIS / UTF-8、日時・経過時間のどちらの形式でも読めます。データはこのPCの外に送られません</span>
+      <input id="fileInput" type="file" accept=".csv,.txt,.tsv" multiple hidden>
+    </div>
+    <div class="row toolbar">
+      <div class="row">
+        <button id="sampleBtn" class="primary">サンプルで試す</button>
+        <button id="clearBtn">すべてクリア</button>
+      </div>
+      <button id="exportBtn" disabled>指標の表をCSVで保存</button>
+    </div>
+    <div id="errors" class="error"></div>
+    <div id="chips" class="chips"></div>
+
+    <div class="settings">
+      <label>基準のプリセット
+        <select id="preset">
+          <option value="food">食品の冷凍（−1〜−5℃・−18℃）</option>
+          <option value="device">低温試験（−1〜−5℃・−40℃）</option>
+          <option value="custom">任意</option>
+        </select>
+      </label>
+      <label>帯の上限 [℃]<input id="upper" type="number" step="0.5"></label>
+      <label>帯の下限 [℃]<input id="lower" type="number" step="0.5"></label>
+      <label>目標温度 [℃]<input id="target" type="number" step="1"></label>
+      <label>通過時間の基準 [分]<input id="criterion" type="number" step="5" min="1"></label>
+      <label>評価する列
+        <select id="channel"><option value="">自動（中心・品温を優先）</option></select>
+      </label>
+    </div>
+  </section>
+
+  <div id="emptyState" class="card empty">
+    <p><strong>まだデータがありません</strong></p>
+    <p>CSVを読み込むか、ダミーデータ（6試験）で動きを確認できます。</p>
+    <button id="sampleBtn2" class="primary">サンプルで試す</button>
+  </div>
+
+  <div id="results" class="hidden">
+    <div id="kpis" class="kpis"></div>
+
+    <div class="grid2">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>冷却曲線の重ね合わせ</h2>
+            <p class="hint" id="overlayHint"></p>
+          </div>
+        </div>
+        <div id="overlay" class="chart"></div>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>最大氷結晶生成帯の通過時間</h2>
+            <p class="hint" id="barHint"></p>
+          </div>
+        </div>
+        <div id="bars" class="chart short"></div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div>
+          <h2>指標の比較</h2>
+          <p class="hint">行をクリックすると下に詳しいグラフを表示します。見出しをクリックすると並べ替えます</p>
+        </div>
+      </div>
+      <div class="table-wrap"><table id="table"></table></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2 id="detailTitle">試験の詳細</h2>
+          <p class="hint">すべての列（チャンネル）を表示。帯に入った・抜けた時刻と過冷却の点に印を付けています</p>
+        </div>
+        <select id="detailSelect"></select>
+      </div>
+      <div id="detail" class="chart"></div>
+      <div id="detailMeta" class="detail-meta"></div>
+    </section>
+  </div>
+</div>
+
+<script src="analysis.js"></script>
+<script src="samples.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

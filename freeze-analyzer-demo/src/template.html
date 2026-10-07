@@ -1,0 +1,501 @@
+<title>冷凍試験 解析ツール</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 計測機器のパネルのような1カラム。上から 設定 → 状況 → 重ねグラフ → 比較表/ランキング → 詳細 → AI評価 */
+:root {
+  --bg: #eef2f5;
+  --panel: #fbfcfd;
+  --ink: #0e1b26;
+  --ink-2: #455565;
+  --muted: #7a8896;
+  --line: #d6dee5;
+  --grid: #e3e9ee;
+  --accent: #0a5f8f;
+  --accent-ink: #ffffff;
+  --zone: rgba(64, 160, 214, 0.14);
+  --zone-edge: rgba(64, 160, 214, 0.55);
+  --ok: #0c7a3a; --ok-bg: #e2f3e8;
+  --warn: #8a5a00; --warn-bg: #fbefd2;
+  --ng: #b42f2f; --ng-bg: #f8e1e1;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  --font-body: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141a; --panel: #141e26; --ink: #e8eef3; --ink-2: #b3c0cb; --muted: #7f8e9b;
+    --line: #26343f; --grid: #1f2b35; --accent: #4fa8db; --accent-ink: #06121a;
+    --zone: rgba(79, 168, 219, 0.16); --zone-edge: rgba(79, 168, 219, 0.6);
+    --ok: #4cc47a; --ok-bg: #12301f; --warn: #e8b448; --warn-bg: #33270d; --ng: #f07a7a; --ng-bg: #3a1717;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #2f9a2f; --s7: #9085e9; --s8: #e66767;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141a; --panel: #141e26; --ink: #e8eef3; --ink-2: #b3c0cb; --muted: #7f8e9b;
+  --line: #26343f; --grid: #1f2b35; --accent: #4fa8db; --accent-ink: #06121a;
+  --zone: rgba(79, 168, 219, 0.16); --zone-edge: rgba(79, 168, 219, 0.6);
+  --ok: #4cc47a; --ok-bg: #12301f; --warn: #e8b448; --warn-bg: #33270d; --ng: #f07a7a; --ng-bg: #3a1717;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #2f9a2f; --s7: #9085e9; --s8: #e66767;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.6; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 20px 48px; display: grid; gap: 16px; }
+@media (max-width: 520px) { .wrap { padding-inline: 16px; } }
+h1, h2 { text-wrap: balance; margin: 0; }
+h1 { font-size: 20px; font-weight: 700; letter-spacing: .02em; }
+h2 { font-size: 15px; font-weight: 700; }
+.num, td.n, .mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.sub { color: var(--muted); font-size: 12.5px; }
+
+/* ヘッダー */
+.top { display: flex; gap: 16px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
+.eyebrow { font-size: 11.5px; letter-spacing: .12em; color: var(--accent); font-weight: 500; }
+.badge-demo { display: inline-block; font-size: 11px; border: 1px solid var(--line); color: var(--ink-2); padding: 1px 8px; border-radius: 999px; margin-left: 8px; vertical-align: 3px; letter-spacing: .04em; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button, .btn { font: inherit; font-size: 13px; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; cursor: pointer; }
+button:hover, .btn:hover { border-color: var(--accent); }
+button.primary, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 500; }
+button:focus-visible, select:focus-visible, input:focus-visible, .btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[disabled] { opacity: .55; cursor: not-allowed; }
+.btn { position: relative; }
+.btn input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* 設定バー */
+.settings { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
+.field { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.field input, .field select { font: inherit; font-family: var(--font-data); font-size: 13px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+.field input { width: 64px; text-align: right; }
+.field select { font-family: var(--font-body); max-width: 220px; }
+.drop-hint { margin-left: auto; color: var(--muted); font-size: 12.5px; }
+
+/* 状況サマリー */
+.status-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 3px 10px; border-radius: 999px; font-weight: 500; white-space: nowrap; }
+.pill .i { font-weight: 700; }
+.pill.ok { color: var(--ok); background: var(--ok-bg); }
+.pill.warn { color: var(--warn); background: var(--warn-bg); }
+.pill.ng { color: var(--ng); background: var(--ng-bg); }
+.pill.neutral { color: var(--ink-2); background: var(--bg); border: 1px solid var(--line); }
+.notice { font-size: 13px; color: var(--warn); background: var(--warn-bg); border-radius: var(--r); padding: 8px 12px; }
+.notice.err { color: var(--ng); background: var(--ng-bg); }
+
+/* グラフ */
+.chart { width: 100%; height: 440px; }
+.chart.sm { height: 300px; }
+.chart.detail { height: 360px; }
+.legend-note { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+.legend-note span::before { content: ""; display: inline-block; width: 18px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 2px; }
+.ln-zone::before { background: var(--zone); border: 1px solid var(--zone-edge); }
+.ln-target::before { height: 0 !important; border-top: 2px dashed var(--ng); }
+
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 960px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* 表 */
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 720px; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th.n, td.n { text-align: right; }
+td.n { white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--bg); }
+tbody tr.sel { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: 0; }
+.trial-name { font-weight: 500; white-space: nowrap; }
+.cond { color: var(--ink-2); white-space: nowrap; }
+.dash { color: var(--muted); }
+.flag { color: var(--warn); font-weight: 500; }
+.reason { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+
+/* 詳細 */
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; }
+@media (max-width: 860px) { .detail-grid { grid-template-columns: minmax(0, 1fr); } }
+dl.meta { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+dl.meta dt { color: var(--muted); }
+dl.meta dd { margin: 0; word-break: break-all; }
+
+/* AI評価 */
+.ai { border-style: dashed; }
+.ai p { margin: 0 0 8px; color: var(--ink-2); max-width: 70ch; }
+.ai ul { margin: 0; padding-left: 1.2em; color: var(--ink-2); }
+.defs { font-size: 12.5px; color: var(--ink-2); }
+.defs dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 8px 0 0; }
+.defs dt { font-weight: 500; color: var(--ink); }
+.defs dd { margin: 0; }
+@media (max-width: 600px) { .defs dl { grid-template-columns: 1fr; } .drop-hint { margin-left: 0; } }
+
+body.dragging .wrap { outline: 3px dashed var(--accent); outline-offset: -8px; border-radius: 12px; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 8px 14px; border-radius: var(--r); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap" id="app">
+  <header class="top">
+    <div>
+      <div class="eyebrow">FREEZING TEST ANALYZER</div>
+      <h1>冷凍試験 解析ツール<span class="badge-demo">デモ版</span></h1>
+      <div class="sub" id="sourceNote">ダミーデータ（鶏もも肉200g・条件違い6試験）を表示しています</div>
+    </div>
+    <div class="actions">
+      <label class="btn primary" for="fileInput">CSVを追加<input type="file" id="fileInput" accept=".csv,.txt,text/csv" multiple></label>
+      <button type="button" id="btnSample">サンプルに戻す</button>
+      <button type="button" id="btnClear">すべて消す</button>
+    </div>
+  </header>
+
+  <section class="panel settings" aria-label="判定の設定">
+    <div class="field"><label for="zoneHi">最大氷結晶生成帯</label><input id="zoneHi" type="number" step="0.5" value="-1">〜<input id="zoneLo" type="number" step="0.5" value="-5" aria-label="生成帯の下限">℃</div>
+    <div class="field"><label for="target">目標温度</label><input id="target" type="number" step="1" value="-18">℃</div>
+    <div class="field"><label for="passLimit">通過時間の合格ライン</label><input id="passLimit" type="number" step="1" value="30">分以内</div>
+    <div class="field"><label for="chSel">評価する温度</label><select id="chSel"></select></div>
+    <span class="drop-hint">CSVはこの画面のどこにでもドラッグ&ドロップできます</span>
+  </section>
+
+  <div id="errors" hidden></div>
+
+  <section class="status-row" id="statusRow" aria-live="polite"></section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>冷却曲線の重ね合わせ</h2>
+      <span class="sub">凡例をクリックで表示切替・ドラッグで拡大・ダブルクリックで戻る</span>
+    </div>
+    <div id="overlay" class="chart" role="img" aria-label="全試験の冷却曲線を重ねたグラフ"></div>
+    <div class="legend-note"><span class="ln-zone" id="zoneNote">最大氷結晶生成帯</span><span class="ln-target" id="targetNote">目標温度</span></div>
+  </section>
+
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>指標の比較</h2>
+        <button type="button" id="btnCopy">表をコピー（Excelに貼り付け可）</button>
+      </div>
+      <div class="table-scroll">
+        <table id="tbl">
+          <thead><tr>
+            <th>試験</th><th>条件</th>
+            <th class="n">過冷却</th><th class="n">生成帯の通過</th><th class="n" id="thReach">目標到達</th><th class="n">冷却速度</th><th class="n">外れ値</th><th>判定</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="sub" style="margin-top:8px">行をクリックすると、下に試験の詳細を表示します</div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>通過時間のランキング</h2><span class="sub">短いほど急速凍結</span></div>
+      <div id="rank" class="chart sm" role="img" aria-label="最大氷結晶生成帯の通過時間の棒グラフ"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2 id="detailTitle">試験の詳細</h2>
+      <div class="field"><label for="detailSel">試験</label><select id="detailSel"></select></div>
+    </div>
+    <div class="detail-grid">
+      <div id="detail" class="chart detail" role="img" aria-label="選んだ試験の全チャンネルのグラフ"></div>
+      <div>
+        <dl class="meta" id="detailMeta"></dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel ai">
+    <div class="panel-head"><h2>AIによる評価</h2><button type="button" disabled>評価する（次の段階で追加）</button></div>
+    <p>上の指標と冷却曲線をもとに、AIが文章で評価する機能を次の段階で追加します。出力のイメージ:</p>
+    <ul>
+      <li>品質面の評価（生成帯の通過時間・過冷却・到達時間から見た凍結の速さ）</li>
+      <li>条件どうしの比較コメント（どの設定温度・風速が効いているか）</li>
+      <li>改善の提案（風速・設定温度・置き方・品物の厚み など）</li>
+    </ul>
+  </section>
+
+  <section class="defs">
+    <h2>計算のしかた</h2>
+    <dl>
+      <dt>生成帯の通過</dt><dd>品温が最後に上限（初期値 −1℃）を下回った時刻から、最後に下限（−5℃）を下回った時刻まで。30秒間隔の間は直線でつないで求めます。</dd>
+      <dt>目標到達</dt><dd>品温が最後に目標温度を下回った時刻（記録開始からの経過分）。</dd>
+      <dt>過冷却</dt><dd>0℃未満で温度が一度下がりきり、その後5分以内に0.3℃以上はね上がった点。</dd>
+      <dt>冷却速度</dt><dd>生成帯の下限から目標温度までの平均（℃/分）。</dd>
+      <dt>外れ値</dt><dd>前後の点を結んだ線から5℃以上外れた1〜3点の並び。計算からは除き、前後の値でつなぎます。</dd>
+      <dt>判定</dt><dd>合格＝通過時間が合格ライン以内で目標に到達／要確認＝通過は基準内だが目標に未到達／不合格＝通過時間が基準超え。</dd>
+    </dl>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-basic-dist-min@2.35.2/plotly-basic.min.js"></script>
+<script>/*__ANALYSIS__*/</script>
+<script>
+const SAMPLES = /*__SAMPLES__*/;
+(function () {
+  "use strict";
+  const A = window.FreezeAnalysis;
+  const $ = (s) => document.querySelector(s);
+  const state = { trials: [], selected: 0, channel: null, isSample: true };
+  const JUDGE = { ok: { label: "合格", icon: "✓" }, warn: { label: "要確認", icon: "!" }, ng: { label: "不合格", icon: "×" } };
+
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const seriesColor = (i) => i < 8 ? css("--s" + (i + 1)) : css("--muted");
+  const fmt = (v, d = 1) => v == null || isNaN(v) ? null : v.toFixed(d);
+  const opts = () => ({
+    zoneHi: +$("#zoneHi").value, zoneLo: +$("#zoneLo").value,
+    target: +$("#target").value, passLimit: +$("#passLimit").value,
+  });
+
+  function addTrial(text, name) {
+    const tr = A.parseTrial(text, name);
+    state.trials.push(tr);
+  }
+  function loadSamples() {
+    state.trials = []; state.isSample = true; state.channel = null;
+    SAMPLES.forEach((s) => addTrial(s.text, s.name));
+    $("#sourceNote").textContent = "ダミーデータ（鶏もも肉200g・条件違い6試験）を表示しています";
+    state.selected = 0; render();
+  }
+
+  async function loadFiles(files) {
+    const errs = [];
+    if (state.isSample) { state.trials = []; state.isSample = false; state.selected = 0; }
+    for (const f of files) {
+      try {
+        const buf = new Uint8Array(await f.arrayBuffer());
+        addTrial(A.decode(buf), f.name);
+      } catch (e) { errs.push(`${f.name}: ${e.message}`); }
+    }
+    const box = $("#errors");
+    box.hidden = !errs.length;
+    box.innerHTML = errs.map((e) => `<div class="notice err">読み込めませんでした — ${esc(e)}</div>`).join("");
+    $("#sourceNote").textContent = `読み込んだCSV ${state.trials.length}件を表示しています`;
+    render();
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+  function channelNames() {
+    const set = [];
+    state.trials.forEach((t) => t.channels.forEach((c) => { if (!set.includes(c.name)) set.push(c.name); }));
+    return set;
+  }
+
+  function compute() {
+    const o = opts();
+    state.trials.forEach((tr) => {
+      tr.ci = A.pickChannel(tr.channels, state.channel);
+      tr.m = A.metrics(tr.t, tr.channels[tr.ci].raw, o);
+      tr.chFlags = tr.channels.map((c) => A.despike(c.raw).flags);
+    });
+  }
+
+  function render() {
+    // チャンネル選択
+    const names = channelNames();
+    const sel = $("#chSel");
+    if (!state.channel && state.trials.length) state.channel = state.trials[0].channels[A.pickChannel(state.trials[0].channels)].name;
+    sel.innerHTML = names.map((n) => `<option ${n === state.channel ? "selected" : ""}>${esc(n)}</option>`).join("");
+    compute();
+    renderStatus(); renderOverlay(); renderTable(); renderRank(); renderDetail();
+  }
+
+  function renderStatus() {
+    const c = { ok: 0, warn: 0, ng: 0 }; let fl = 0;
+    state.trials.forEach((t) => { c[t.m.judge]++; fl += t.chFlags.reduce((a, f) => a + f.length, 0); });
+    const flagged = state.trials.filter((t) => t.chFlags.some((f) => f.length)).map((t) => t.label.split(" ")[0]);
+    $("#statusRow").innerHTML = state.trials.length ? [
+      `<span class="pill neutral">試験 <b class="num">${state.trials.length}</b> 件</span>`,
+      `<span class="pill ok"><span class="i">${JUDGE.ok.icon}</span>合格 <b class="num">${c.ok}</b></span>`,
+      `<span class="pill warn"><span class="i">${JUDGE.warn.icon}</span>要確認 <b class="num">${c.warn}</b></span>`,
+      `<span class="pill ng"><span class="i">${JUDGE.ng.icon}</span>不合格 <b class="num">${c.ng}</b></span>`,
+      fl ? `<span class="pill warn"><span class="i">!</span>外れ値 ${fl}点を除外（${esc(flagged.join("、"))}）</span>` : `<span class="pill neutral">外れ値なし</span>`,
+    ].join("") : `<span class="pill neutral">CSVを追加すると、ここに判定の集計が出ます</span>`;
+  }
+
+  function baseLayout(extra) {
+    const ink = css("--ink-2"), grid = css("--grid"), line = css("--line");
+    return Object.assign({
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+      font: { family: css("--font-body"), color: ink, size: 12 },
+      margin: { l: 52, r: 16, t: 8, b: 44 },
+      xaxis: { title: { text: "経過時間（分）", standoff: 8 }, gridcolor: grid, zerolinecolor: line, linecolor: line, tickfont: { family: css("--font-data") } },
+      yaxis: { title: { text: "温度（℃）", standoff: 6 }, gridcolor: grid, zerolinecolor: line, linecolor: line, tickfont: { family: css("--font-data") } },
+      hoverlabel: { bgcolor: css("--panel"), bordercolor: line, font: { color: css("--ink"), family: css("--font-body") } },
+      legend: { orientation: "h", y: -0.2, x: 0, font: { size: 12 } },
+    }, extra || {});
+  }
+  const cfg = { displaylogo: false, responsive: true, modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"] };
+
+  function zoneShapes() {
+    const o = opts();
+    return [
+      { type: "rect", xref: "paper", x0: 0, x1: 1, yref: "y", y0: o.zoneLo, y1: o.zoneHi, fillcolor: css("--zone"), line: { width: 0 }, layer: "below" },
+      { type: "line", xref: "paper", x0: 0, x1: 1, yref: "y", y0: o.target, y1: o.target, line: { color: css("--ng"), width: 1.5, dash: "dash" } },
+    ];
+  }
+
+  function renderOverlay() {
+    const o = opts();
+    $("#zoneNote").textContent = `最大氷結晶生成帯（${o.zoneHi}〜${o.zoneLo}℃）`;
+    $("#targetNote").textContent = `目標温度（${o.target}℃）`;
+    const traces = state.trials.map((tr, i) => ({
+      x: tr.t, y: tr.m.y, name: tr.label, type: "scatter", mode: "lines",
+      line: { color: seriesColor(i), width: 2 },
+      hovertemplate: "%{y:.1f}℃<extra>" + esc(tr.label.split(" ")[0]) + "</extra>",
+    }));
+    Plotly.react("overlay", traces, baseLayout({ shapes: zoneShapes(), hovermode: "x unified", showlegend: true }), cfg);
+  }
+
+  function renderTable() {
+    const o = opts();
+    $("#thReach").textContent = `${o.target}℃到達`;
+    const cell = (v, unit, d) => v == null ? `<span class="dash">—</span>` : `${v}${unit ? `<span class="sub"> ${unit}</span>` : ""}`;
+    $("#tbl tbody").innerHTML = state.trials.map((tr, i) => {
+      const m = tr.m, j = JUDGE[m.judge];
+      const cond = [tr.meta["庫内設定"], tr.meta["風速"]].filter(Boolean).join(" / ") || tr.channels[tr.ci].name;
+      const sc = m.supercool ? `${fmt(m.supercool.T)}℃<span class="reason">${fmt(m.supercool.t)}分時点</span>` : `<span class="dash">なし</span>`;
+      const reach = m.reach == null ? `<span class="dash">未到達</span>` : cell(fmt(m.reach), "分");
+      const nf = tr.chFlags.reduce((a, f) => a + f.length, 0);
+      const flags = nf ? `<span class="flag">${nf}点</span>` : `<span class="dash">0</span>`;
+      return `<tr data-i="${i}" class="${i === state.selected ? "sel" : ""}">
+        <td><span class="trial-name"><span class="sw" style="background:${seriesColor(i)}"></span>${esc(tr.label.split(" ")[0])}</span></td>
+        <td class="cond">${esc(cond)}</td>
+        <td class="n">${sc}</td>
+        <td class="n"><b>${cell(fmt(m.pass), "分")}</b></td>
+        <td class="n">${reach}</td>
+        <td class="n">${cell(fmt(m.rate, 2), "℃/分")}</td>
+        <td class="n">${flags}</td>
+        <td><span class="pill ${m.judge}"><span class="i">${j.icon}</span>${j.label}</span><span class="reason">${esc(m.reason)}</span></td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="8" class="sub">CSVがまだありません。右上の「CSVを追加」かドラッグ&ドロップで読み込んでください。</td></tr>`;
+    document.querySelectorAll("#tbl tbody tr[data-i]").forEach((tr) => tr.addEventListener("click", () => {
+      state.selected = +tr.dataset.i; renderTable(); renderDetail();
+      $("#detailTitle").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    }));
+  }
+
+  function renderRank() {
+    const o = opts();
+    const rows = state.trials.map((tr, i) => ({ tr, i })).filter((r) => r.tr.m.pass != null)
+      .sort((a, b) => b.tr.m.pass - a.tr.m.pass); // 下から長い順 → 上が最短
+    const trace = {
+      type: "bar", orientation: "h",
+      y: rows.map((r) => r.tr.label.split(" ")[0] + " "), x: rows.map((r) => r.tr.m.pass),
+      marker: { color: rows.map((r) => seriesColor(r.i)), line: { color: css("--panel"), width: 2 } },
+      text: rows.map((r) => r.tr.m.pass.toFixed(1) + "分"), textposition: "outside", cliponaxis: false,
+      textfont: { color: css("--ink"), family: css("--font-data") },
+      hovertemplate: "%{y}: %{x:.1f}分<extra></extra>",
+    };
+    const xmax = Math.max(o.passLimit, ...rows.map((r) => r.tr.m.pass)) * 1.18;
+    Plotly.react("rank", [trace], baseLayout({
+      margin: { l: 48, r: 16, t: 26, b: 40 }, showlegend: false, bargap: 0.35,
+      xaxis: { title: { text: "通過時間（分）", standoff: 6 }, range: [0, xmax], gridcolor: css("--grid"), zeroline: false, linecolor: css("--line"), tickfont: { family: css("--font-data") } },
+      yaxis: { tickfont: { family: css("--font-data") }, automargin: true },
+      shapes: [{ type: "line", yref: "paper", y0: 0, y1: 1, x0: o.passLimit, x1: o.passLimit, line: { color: css("--ng"), width: 1.5, dash: "dash" } }],
+      annotations: [{ x: o.passLimit, y: 1, yref: "paper", text: `合格ライン ${o.passLimit}分`, showarrow: false, xanchor: "left", yanchor: "bottom", xshift: 4, font: { size: 11, color: css("--ng") } }],
+    }), cfg);
+  }
+
+  function renderDetail() {
+    const sel = $("#detailSel");
+    sel.innerHTML = state.trials.map((t, i) => `<option value="${i}" ${i === state.selected ? "selected" : ""}>${esc(t.label)}</option>`).join("");
+    const tr = state.trials[state.selected];
+    if (!tr) { Plotly.purge("detail"); $("#detailMeta").innerHTML = ""; return; }
+    const pal = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6"];
+    const traces = [];
+    let lo = Infinity, hi = -Infinity, legendDone = false;
+    tr.channels.forEach((c) => A.despike(c.raw).y.forEach((v) => { if (v < lo) lo = v; if (v > hi) hi = v; }));
+    const pad = Math.max(3, (hi - lo) * 0.06); lo -= pad; hi += pad;
+    const clamp = (v) => Math.min(hi - pad * 0.3, Math.max(lo + pad * 0.3, v));
+    tr.channels.forEach((c, j) => {
+      const { y, flags } = A.despike(c.raw);
+      traces.push({ x: tr.t, y, name: c.name, type: "scatter", mode: "lines", line: { color: css(pal[j % pal.length]), width: j === tr.ci ? 2.5 : 1.5 }, hovertemplate: "%{y:.1f}℃<extra>" + esc(c.name) + "</extra>" });
+      if (flags.length) traces.push({
+        x: flags.map((k) => tr.t[k]), y: flags.map((k) => clamp(c.raw[k])), customdata: flags.map((k) => c.raw[k]),
+        name: "外れ値（計算から除外）", legendgroup: "out", showlegend: !legendDone, mode: "markers", type: "scatter",
+        marker: { symbol: "x", size: 10, color: css("--ng"), line: { width: 2, color: css("--ng") } },
+        hovertemplate: "外れ値 %{customdata:.1f}℃（" + esc(c.name) + "・計算から除外）<extra></extra>",
+      });
+      if (flags.length) legendDone = true;
+    });
+    const m = tr.m, o = opts();
+    const shapes = zoneShapes();
+    if (m.zoneIn != null && m.zoneOut != null) shapes.push({ type: "rect", xref: "x", yref: "paper", x0: m.zoneIn, x1: m.zoneOut, y0: 0, y1: 1, fillcolor: css("--zone"), line: { width: 1, color: css("--zone-edge") }, layer: "below" });
+    const ann = m.pass != null ? [{ x: (m.zoneIn + m.zoneOut) / 2, y: 1, yref: "paper", text: `通過 ${m.pass.toFixed(1)}分`, showarrow: false, yanchor: "bottom", font: { size: 11, color: css("--ink-2") } }] : [];
+    const lay = baseLayout({ shapes, annotations: ann, hovermode: "x unified", margin: { l: 52, r: 16, t: 22, b: 44 } });
+    lay.yaxis = Object.assign({}, lay.yaxis, { range: [lo, hi] });
+    Plotly.react("detail", traces, lay, cfg);
+    const j = JUDGE[m.judge];
+    const rows = [
+      ...Object.entries(tr.meta).filter(([k]) => k !== "試験名").map(([k, v]) => [k, esc(v)]),
+      ["ファイル", esc(tr.fileName || "")],
+      ["記録の長さ", `<span class="num">${fmt(m.duration)}</span> 分`],
+      ["評価した温度", esc(tr.channels[tr.ci].name)],
+      ["生成帯の通過", m.pass == null ? "—" : `<b class="num">${fmt(m.pass)}</b> 分（${fmt(m.zoneIn)}→${fmt(m.zoneOut)}分）`],
+      [`${o.target}℃到達`, m.reach == null ? "未到達" : `<span class="num">${fmt(m.reach)}</span> 分`],
+      ["最低温度", `<span class="num">${fmt(m.minT)}</span> ℃`],
+      ["判定", `<span class="pill ${m.judge}"><span class="i">${j.icon}</span>${j.label}</span>`],
+    ];
+    $("#detailMeta").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("");
+  }
+
+  function tableTSV() {
+    const o = opts();
+    const head = ["試験名", "庫内設定", "風速", "評価温度", "過冷却(℃)", "過冷却時刻(分)", "生成帯通過(分)", `${o.target}℃到達(分)`, "冷却速度(℃/分)", "外れ値(点)", "判定"];
+    const lines = state.trials.map((t) => {
+      const m = t.m;
+      return [t.label, t.meta["庫内設定"] || "", t.meta["風速"] || "", t.channels[t.ci].name,
+        m.supercool ? fmt(m.supercool.T) : "", m.supercool ? fmt(m.supercool.t) : "", fmt(m.pass) ?? "", fmt(m.reach) ?? "未到達",
+        fmt(m.rate, 2) ?? "", m.flags.length, JUDGE[m.judge].label].join("\t");
+    });
+    return [head.join("\t"), ...lines].join("\n");
+  }
+
+  function toast(msg) {
+    const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.appendChild(d);
+    setTimeout(() => d.remove(), 2200);
+  }
+
+  // イベント
+  ["zoneHi", "zoneLo", "target", "passLimit"].forEach((id) => $("#" + id).addEventListener("change", render));
+  $("#chSel").addEventListener("change", (e) => { state.channel = e.target.value; render(); });
+  $("#detailSel").addEventListener("change", (e) => { state.selected = +e.target.value; renderTable(); renderDetail(); });
+  $("#fileInput").addEventListener("change", (e) => { loadFiles([...e.target.files]); e.target.value = ""; });
+  $("#btnSample").addEventListener("click", loadSamples);
+  $("#btnClear").addEventListener("click", () => { state.trials = []; state.isSample = false; state.channel = null; $("#sourceNote").textContent = "CSVを追加してください"; render(); });
+  $("#btnCopy").addEventListener("click", () => {
+    const text = tableTSV();
+    const done = () => toast("コピーしました。Excelにそのまま貼り付けできます");
+    const fallback = () => {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) { toast("コピーできませんでした"); } ta.remove();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  });
+  let dragDepth = 0;
+  window.addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; document.body.classList.add("dragging"); });
+  window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); } });
+  window.addEventListener("dragover", (e) => e.preventDefault());
+  window.addEventListener("drop", (e) => {
+    e.preventDefault(); dragDepth = 0; document.body.classList.remove("dragging");
+    const files = [...(e.dataTransfer && e.dataTransfer.files || [])];
+    if (files.length) loadFiles(files);
+  });
+  // テーマ切替で色を描き直す
+  const rerender = () => state.trials && render();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerender);
+  new MutationObserver(rerender).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  if (!window.Plotly) {
+    $("#errors").hidden = false;
+    $("#errors").innerHTML = `<div class="notice err">グラフ部品を読み込めませんでした。インターネットに接続してから開き直してください。</div>`;
+    return;
+  }
+  loadSamples();
+})();
+</script>

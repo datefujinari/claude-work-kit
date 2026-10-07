@@ -1,0 +1,50 @@
+{
+ "T01": {
+  "pass_min": 17.35833333333333,
+  "reach_min": 29.357142857142858,
+  "supercool_t": 4.5,
+  "supercool_T": -2.5,
+  "rate": 1.6201780415430265,
+  "outliers": 0
+ },
+ "T02": {
+  "pass_min": 27.33076923076923,
+  "reach_min": 44.5,
+  "supercool_t": 6.5,
+  "supercool_T": -1.9,
+  "rate": 1.1403508771929827,
+  "outliers": 0
+ },
+ "T03": {
+  "pass_min": 53.5625,
+  "reach_min": 95.0,
+  "supercool_t": 10.5,
+  "supercool_T": -1.8,
+  "rate": 0.4126984126984127,
+  "outliers": 0
+ },
+ "T04": {
+  "pass_min": 10.709375,
+  "reach_min": 17.90909090909091,
+  "supercool_t": 3.5,
+  "supercool_T": -5.1,
+  "rate": 2.7032136105860105,
+  "outliers": 0
+ },
+ "T05": {
+  "pass_min": 23.46153846153846,
+  "reach_min": 41.5,
+  "supercool_t": 6.0,
+  "supercool_T": -2.2,
+  "rate": 1.04,
+  "outliers": 3
+ },
+ "T06": {
+  "pass_min": 79.0,
+  "reach_min": null,
+  "supercool_t": null,
+  "supercool_T": null,
+  "rate": null,
+  "outliers": 0
+ }
+}
