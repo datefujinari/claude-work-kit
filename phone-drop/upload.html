@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PCへ送る</title>
+<style nonce="{{NONCE}}">
+  :root { --bg:#f5f5f7; --card:#fff; --text:#1d1d1f; --sub:#6e6e73; --accent:#0071e3; --ok:#1a8f3c; --ng:#c9302c; --line:#e5e5ea; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --card:#1c1c1e; --text:#f5f5f7; --sub:#98989d; --accent:#0a84ff; --ok:#30d158; --ng:#ff453a; --line:#38383a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px 48px; background:var(--bg); color:var(--text);
+         font-family:-apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; }
+  main { max-width:480px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--sub); font-size:14px; margin:0 0 20px; }
+  label.pick { display:block; background:var(--accent); color:#fff; text-align:center;
+               padding:18px; border-radius:14px; font-size:18px; font-weight:600; }
+  input[type=file] { display:none; }
+  ul { list-style:none; padding:0; margin:20px 0 0; }
+  li { background:var(--card); border:1px solid var(--line); border-radius:12px;
+       padding:12px 14px; margin-bottom:8px; font-size:14px; }
+  .row { display:flex; justify-content:space-between; gap:8px; }
+  .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .st { flex:none; color:var(--sub); }
+  .st.ok { color:var(--ok); } .st.ng { color:var(--ng); }
+  progress { width:100%; height:6px; margin-top:8px; accent-color:var(--accent); }
+  #summary { margin-top:16px; font-weight:600; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PCへ送る</h1>
+  <p class="sub">写真や動画を選ぶと、そのままPCに保存されます。</p>
+  <label class="pick" for="files">写真を選ぶ</label>
+  <input id="files" type="file" multiple accept="image/*,video/*">
+  <ul id="list"></ul>
+  <p id="summary"></p>
+</main>
+<script nonce="{{NONCE}}">
+const token = new URLSearchParams(location.search).get("t");
+const input = document.getElementById("files");
+const list = document.getElementById("list");
+const summary = document.getElementById("summary");
+
+function addRow(file) {
+  const li = document.createElement("li");
+  li.innerHTML = '<div class="row"><span class="name"></span><span class="st">待機中</span></div><progress max="1" value="0"></progress>';
+  li.querySelector(".name").textContent = file.name;
+  list.prepend(li);
+  return { st: li.querySelector(".st"), bar: li.querySelector("progress") };
+}
+
+function upload(file, row) {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/upload");
+    xhr.setRequestHeader("X-Token", token);
+    xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        row.bar.value = e.loaded / e.total;
+        row.st.textContent = Math.round(e.loaded / e.total * 100) + "%";
+      }
+    };
+    xhr.onload = () => {
+      const ok = xhr.status === 200;
+      row.st.textContent = ok ? "保存しました" : "失敗（" + (xhr.responseText || xhr.status) + "）";
+      row.st.className = "st " + (ok ? "ok" : "ng");
+      row.bar.value = ok ? 1 : 0;
+      resolve(ok);
+    };
+    xhr.onerror = () => {
+      row.st.textContent = "失敗（PCにつながりません）";
+      row.st.className = "st ng";
+      resolve(false);
+    };
+    row.st.textContent = "送信中";
+    xhr.send(file);
+  });
+}
+
+input.addEventListener("change", async () => {
+  const files = [...input.files];
+  input.value = "";
+  if (!files.length) return;
+  summary.textContent = "";
+  const rows = files.map(addRow);
+  let ok = 0;
+  for (let i = 0; i < files.length; i++) {
+    if (await upload(files[i], rows[i])) ok++;
+  }
+  summary.textContent = ok === files.length
+    ? files.length + "件 送りました"
+    : ok + " / " + files.length + "件 送りました（失敗したものはもう一度選んでください）";
+});
+</script>
+</body>
+</html>
